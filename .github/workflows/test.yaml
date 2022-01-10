@@ -1,0 +1,51 @@
+name: test
+
+on:
+  push:
+    branches: [main, master]
+
+env:
+  max_threads: 16
+  pre_command: cd /opt/git/operations/
+  ACR_ANALYTICS_DEV_HOST: analyticspremainnet.azurecr.io
+  ACR_ANALYTICS_PROD_HOST: analyticsprod.azurecr.io
+  ACR_DEV_HOST: aosdev.azurecr.io
+  ACR_PROD_HOST: aosprod.azurecr.io
+  AOS_IMAGE_NAME: aos
+  PORTAL_IMAGE_NAME: portal
+  ANALYTICS_IMAGE_NAME: analytics
+  ANALYTICS_MONITORING_IMAGE_NAME: monitoring
+  ANALYTICS_DCS_IMAGE_NAME: dcs
+  # for rust tests
+  VALIDATOR_IMAGE: diem/validator:release-1.4_416fdd3b
+  DATABASE_URL: postgresql://postgres:postgres@localhost/postgres
+  FULLNODE_ENDPOINTS: "http://localhost:8080"
+  POSTGRES_PASSWORD: postgres
+  RUST_LOG: "error"
+  STRUCT_LOG_FILE: "/dev/null"
+  STRUCT_LOG_LEVEL: "debug"
+  RUST_BACKTRACE: "1"
+  RUST_TEST_THREADS: "1"
+  # for continuous push
+  AZURE_DEV_SUBSCRIPTION_ID: "1c11e246-5259-4597-a3ad-9a3d55361c1e"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_DEV_CREDENTIALS }}
+      - name: env
+        run: printenv
+      - name: Check images exist
+        run: |
+          set -ex
+          az acr repository show --name $ACR_DEV_HOST --image $(echo $AOS_IMAGE_NAME | cut -d "/" -f2)
+          az acr repository show --name $ACR_DEV_HOST --image $(echo $PORTAL_IMAGE_NAME | cut -d "/" -f2)
+      - name: Authenticate with k8s
+        if: always()
+        run: |
+          set -ex
+          az aks get-credentials --overwrite-existing --name aos-testing --resource-group aos-testing --subscription $AZURE_DEV_SUBSCRIPTION_ID --admin
+          kubectl get pods
